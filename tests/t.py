@@ -10,13 +10,17 @@ db.put('a', '2', villa.VL_DDUP)
 print db.getlist('a')
 
 db['apple'] = 'red'
-db['lemon'] = 'black'
-db['orange'] = 'orange'
+db['apple2'] = 'red'
 db['lemon'] = 'yellow'
+db['orange'] = 'orange'
 
-print db['lemon']
-
+print '*' * 100
 for k, v in db.iteritems():
+    print k, v
+
+
+print '*' * 100
+for k, v in db.iterprefix('app', villa.VL_JFORWARD):
     print k, v
 
 db.close()

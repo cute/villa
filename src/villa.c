@@ -17,6 +17,8 @@ typedef struct {
 typedef struct {
     PyObject_HEAD
     VILLA *villa;
+    char *prefix;
+    int jmode;
 } villaobject;
 
 static PyTypeObject VillaType;
@@ -28,7 +30,13 @@ static PyTypeObject VillaType;
         return NULL;                                                         \
     }
 
+typedef int (*vlcurpos)(VILLA *villa);
 static PyObject *VillaError;
+
+extern PyTypeObject PyVillaIterKey_Type; /* Forward */
+extern PyTypeObject PyVillaIterItem_Type; /* Forward */
+extern PyTypeObject PyVillaIterValue_Type; /* Forward */
+static PyObject *villaiter_new(villaobject *, PyTypeObject *);
 
 static PyObject *
 new_villa_object(char *file, int flags, int size)
@@ -36,14 +44,18 @@ new_villa_object(char *file, int flags, int size)
     villaobject *dp;
 
     dp = PyObject_New(villaobject, &VillaType);
-    if (dp == NULL){
+    dp->jmode = -1;
+
+    if (dp == NULL) {
         return NULL;
     }
+
     if (!(dp->villa = vlopen(file, flags, VL_CMPLEX))) {
         PyErr_SetString(VillaError, dperrmsg(dpecode));
         Py_DECREF(dp);
         return NULL;
     }
+
     return (PyObject *)dp;
 }
 
@@ -159,8 +171,9 @@ static PyMappingMethods villa_as_mapping = {
 static PyObject *
 villa__close(register villaobject *dp, PyObject *args)
 {
-    if (!PyArg_ParseTuple(args, ":close"))
+    if (!PyArg_ParseTuple(args, ":close")) {
         return NULL;
+    }
     _villa_close(dp);
     Py_INCREF(Py_None);
     return Py_None;
@@ -173,13 +186,13 @@ villa_keys(register villaobject *dp, PyObject *args)
     datum key;
     int err, tmp_size;
 
-    if (!PyArg_ParseTuple(args, ":keys")){
+    if (!PyArg_ParseTuple(args, ":keys")) {
         return NULL;
     }
 
     check_villaobject_open(dp);
     v = PyList_New(0);
-    if (v == NULL){
+    if (v == NULL) {
         return NULL;
     }
 
@@ -203,7 +216,7 @@ villa_keys(register villaobject *dp, PyObject *args)
             Py_DECREF(v);
             return NULL;
         }
-        if (!vlcurnext(dp->villa)){
+        if (!vlcurnext(dp->villa)) {
             break;
         }
     }
@@ -217,7 +230,7 @@ villa_has_key(register villaobject *dp, PyObject *args)
     int val;
     int tmp_size;
 
-    if (!PyArg_ParseTuple(args, "s#:has_key", &key.dptr, &tmp_size)){
+    if (!PyArg_ParseTuple(args, "s#:has_key", &key.dptr, &tmp_size)) {
         return NULL;
     }
 
@@ -247,7 +260,7 @@ villa_get(register villaobject *dp, PyObject *args)
     PyObject *defvalue = Py_None, *ret;
     int tmp_size;
 
-    if (!PyArg_ParseTuple(args, "s#|O:get", &key.dptr, &tmp_size, &defvalue)){
+    if (!PyArg_ParseTuple(args, "s#|O:get", &key.dptr, &tmp_size, &defvalue)) {
         return NULL;
     }
 
@@ -276,22 +289,22 @@ villa_getlist(register villaobject *dp, PyObject *args)
     CBLIST *list;
     int i, err;
 
-    if (!PyArg_ParseTuple(args, "s#:getlist", &key.dptr, &key.dsize)){
+    if (!PyArg_ParseTuple(args, "s#:getlist", &key.dptr, &key.dsize)) {
         return NULL;
     }
 
     check_villaobject_open(dp);
     v = PyList_New(0);
-    if (v == NULL){
+    if (v == NULL) {
         return NULL;
     }
 
     list = vlgetlist(dp->villa, key.dptr, key.dsize);
-    if (!list){
+    if (!list) {
         return v;
     }
 
-    for(i = 0; i < cblistnum(list); i++){
+    for (i = 0; i < cblistnum(list); i++) {
         val.dptr = (char *)cblistval(list, i, &val.dsize);
         item = PyString_FromStringAndSize(val.dptr, val.dsize);
 
@@ -322,7 +335,7 @@ villa_put(register villaobject *dp, PyObject *args)
     int tmp_size, mode;
 
     if (!PyArg_ParseTuple(args, "s#|Si:put",
-            &key.dptr, &tmp_size, &value, &mode)){
+            &key.dptr, &tmp_size, &value, &mode)) {
         return NULL;
     }
 
@@ -331,7 +344,7 @@ villa_put(register villaobject *dp, PyObject *args)
 
     if (value == NULL) {
         value = PyString_FromStringAndSize(NULL, 0);
-        if (value == NULL){
+        if (value == NULL) {
             return NULL;
         }
     }
@@ -349,10 +362,62 @@ villa_put(register villaobject *dp, PyObject *args)
     return value;
 }
 
-extern PyTypeObject PyVillaIterKey_Type; /* Forward */
-extern PyTypeObject PyVillaIterItem_Type; /* Forward */
-extern PyTypeObject PyVillaIterValue_Type; /* Forward */
-static PyObject *villaiter_new(villaobject *, PyTypeObject *);
+static PyObject *
+villa_iterprefix(register villaobject *dp, PyObject *args)
+{
+    datum prefix;
+    int tmp_size, mode;
+
+    if (!PyArg_ParseTuple(args, "s#|i:iterprefix",
+            &prefix.dptr, &tmp_size, &mode)) {
+        return NULL;
+    }
+
+    prefix.dsize = tmp_size;
+    check_villaobject_open(dp);
+    dp->jmode = mode;
+
+    if (!vlcurjump(dp->villa, prefix.dptr, prefix.dsize, mode)) {
+        PyErr_SetString(VillaError, dperrmsg(dpecode));
+        return NULL;
+    }
+
+    return villaiter_new(dp, &PyVillaIterItem_Type);
+}
+
+static PyObject *
+villa_trunprefix(register villaobject *dp, PyObject *args)
+{
+    datum prefix;
+    char *key;
+    int tmp_size, mode;
+
+    if (!PyArg_ParseTuple(args, "s#|i:trunprefix",
+            &prefix.dptr, &tmp_size, &mode)) {
+        return NULL;
+    }
+
+    prefix.dsize = tmp_size;
+    check_villaobject_open(dp);
+
+    if (!vlcurjump(dp->villa, prefix.dptr, prefix.dsize, mode)) {
+        PyErr_SetString(VillaError, dperrmsg(dpecode));
+        Py_RETURN_FALSE;
+    }
+
+    while (vlcurout(dp->villa)) {
+        key = vlcurkey(dp->villa, NULL);
+        if (key){
+            if (strncmp(prefix.dptr, key, prefix.dsize)) {
+                free(key);
+                break;
+            }
+            free(key);
+        }
+    }
+
+    Py_RETURN_TRUE;
+}
 
 static PyObject *
 villa_iterkeys(villaobject *dp)
@@ -373,27 +438,31 @@ villa_itervalues(villaobject *dp)
 }
 
 static PyMethodDef villa_methods[] = {
-    {"close", (PyCFunction)villa__close, METH_VARARGS,
-     "close()\nClose the database."},
-    {"keys", (PyCFunction)villa_keys, METH_VARARGS,
-     "keys() -> list\nReturn a list of all keys in the database."},
-    {"has_key", (PyCFunction)villa_has_key, METH_VARARGS,
-     "has_key(key} -> boolean\nReturn true if key is in the database."},
-    {"put", (PyCFunction)villa_put, METH_VARARGS,
-     "put(key, value, mode) -> value\n"
-     "Return the value for key if present, otherwie null"},
-    {"getlist", (PyCFunction)villa_getlist, METH_VARARGS,
-     "getlist(key) -> list\n"
-     "Return the list for key"},
-    {"get", (PyCFunction)villa_get, METH_VARARGS,
-     "get(key[, default]) -> value\n"
-     "Return the value for key if present, otherwise default."},
-    {"iterkeys", (PyCFunction)villa_iterkeys, METH_NOARGS,
-     "D.iterkeys() -> an iterator over the keys of D"},
-    {"iteritems", (PyCFunction)villa_iteritems, METH_NOARGS,
-     "D.iteritems() -> an iterator over the (key, value) items of D"},
-    {"itervalues", (PyCFunction)villa_itervalues, METH_NOARGS,
-     "D.itervalues() -> an iterator over the values of D"},
+    { "close", (PyCFunction)villa__close, METH_VARARGS,
+        "close()\nClose the database." },
+    { "keys", (PyCFunction)villa_keys, METH_VARARGS,
+        "keys() -> list\nReturn a list of all keys in the database." },
+    { "has_key", (PyCFunction)villa_has_key, METH_VARARGS,
+        "has_key(key} -> boolean\nReturn true if key is in the database." },
+    { "put", (PyCFunction)villa_put, METH_VARARGS,
+        "put(key, value, mode) -> value\n"
+        "Return the value for key if present, otherwie null" },
+    { "iterprefix", (PyCFunction)villa_iterprefix, METH_VARARGS,
+        "D.iterprefix(prefix, mode) -> an iterator over the (key, value) items of D" },
+    { "trunprefix", (PyCFunction)villa_trunprefix, METH_VARARGS,
+        "trunprefix(prefix) -> remove all values key has prefix" },
+    { "getlist", (PyCFunction)villa_getlist, METH_VARARGS,
+        "getlist(key) -> list\n"
+        "Return the list for key" },
+    { "get", (PyCFunction)villa_get, METH_VARARGS,
+        "get(key[, default]) -> value\n"
+        "Return the value for key if present, otherwise default." },
+    { "iterkeys", (PyCFunction)villa_iterkeys, METH_NOARGS,
+        "D.iterkeys() -> an iterator over the keys of D" },
+    { "iteritems", (PyCFunction)villa_iteritems, METH_NOARGS,
+        "D.iteritems() -> an iterator over the (key, value) items of D" },
+    { "itervalues", (PyCFunction)villa_itervalues, METH_NOARGS,
+        "D.itervalues() -> an iterator over the values of D" },
     { NULL, NULL } /* sentinel */
 };
 
@@ -425,7 +494,7 @@ static PyTypeObject VillaType = {
 
 typedef struct {
     PyObject_HEAD
-    villaobject *villa; /* Set to NULL when iterator is exhausted */
+        villaobject *villa; /* Set to NULL when iterator is exhausted */
     PyObject *di_result; /* reusable result tuple for iteritems */
 } villaiterobject;
 
@@ -434,11 +503,17 @@ villaiter_new(villaobject *dp, PyTypeObject *itertype)
 {
     villaiterobject *di;
     di = PyObject_New(villaiterobject, itertype);
-    if (di == NULL)
+
+    if (di == NULL) {
         return NULL;
+    }
+
     Py_INCREF(dp);
     di->villa = dp;
-    vlcurfirst(dp->villa);
+
+    if (dp->jmode == -1) {
+        vlcurfirst(dp->villa);
+    }
 
     if (itertype == &PyVillaIterItem_Type) {
         di->di_result = PyTuple_Pack(2, Py_None, Py_None);
@@ -450,6 +525,7 @@ villaiter_new(villaobject *dp, PyTypeObject *itertype)
     else {
         di->di_result = NULL;
     }
+
     return (PyObject *)di;
 }
 
@@ -472,10 +548,12 @@ static PyObject *villaiter_iternextkey(villaiterobject *di)
     int tmp_size;
     PyObject *ret;
 
-    if (d == NULL)
+    if (d == NULL) {
         return NULL;
+    }
+
     assert(is_villaobject(d));
-    if (vlcurnext(d->villa)){
+    if (vlcurnext(d->villa)) {
         key.dptr = vlcurkey(d->villa, &tmp_size);
     }
     else {
@@ -486,6 +564,7 @@ static PyObject *villaiter_iternextkey(villaiterobject *di)
         di->villa = NULL;
         return NULL;
     }
+
     key.dsize = tmp_size;
 
     ret = PyString_FromStringAndSize(key.dptr, key.dsize);
@@ -501,19 +580,35 @@ static PyObject *villaiter_iternextitem(villaiterobject *di)
     int tmp_size;
     villaobject *d = di->villa;
 
-    if (d == NULL)
+    if (d == NULL) {
         return NULL;
-    assert(is_villaobject(d));
+    }
 
-    if (vlcurnext(d->villa)){
+    assert(is_villaobject(d));
+    if (d->jmode == VL_JFORWARD){
         key.dptr = vlcurkey(d->villa, &tmp_size);
-    }
-    else {
-        if (dpecode != DP_ENOITEM) {
-            PyErr_SetString(VillaError, dperrmsg(dpecode));
+        if (key.dptr) {
+            vlcurnext(d->villa);
         }
-        goto fail;
+        else {
+            if (dpecode != DP_ENOITEM) {
+                PyErr_SetString(VillaError, dperrmsg(dpecode));
+            }
+            goto fail;
+        }
     }
+    else{
+        if (vlcurnext(d->villa)) {
+            key.dptr = vlcurkey(d->villa, &tmp_size);
+        }
+        else {
+            if (dpecode != DP_ENOITEM) {
+                PyErr_SetString(VillaError, dperrmsg(dpecode));
+            }
+            goto fail;
+        }
+    }
+
     key.dsize = tmp_size;
     pykey = PyString_FromStringAndSize(key.dptr, key.dsize);
 
@@ -535,8 +630,9 @@ static PyObject *villaiter_iternextitem(villaiterobject *di)
     }
     else {
         result = PyTuple_New(2);
-        if (result == NULL)
+        if (result == NULL) {
             return NULL;
+        }
     }
 
     PyTuple_SET_ITEM(result, 0, pykey);
@@ -556,11 +652,12 @@ static PyObject *villaiter_iternextvalue(villaiterobject *di)
     int tmp_size;
     villaobject *d = di->villa;
 
-    if (d == NULL)
+    if (d == NULL) {
         return NULL;
+    }
     assert(is_villaobject(d));
 
-    if (vlcurnext(d->villa)){
+    if (vlcurnext(d->villa)) {
         key.dptr = vlcurkey(d->villa, &tmp_size);
     }
     else {
@@ -694,7 +791,7 @@ villaopen(PyObject *self, PyObject *args)
     int size = -1;
     int iflags;
 
-    if (!PyArg_ParseTuple(args, "s|si:open", &name, &flags, &size)){
+    if (!PyArg_ParseTuple(args, "s|si:open", &name, &flags, &size)) {
         return NULL;
     }
 
@@ -734,12 +831,12 @@ initvilla(void)
     VillaType.ob_type = &PyType_Type;
 
     m = Py_InitModule("villa", villamodule_methods);
-    if (m == NULL){
+    if (m == NULL) {
         return;
     }
 
     d = PyModule_GetDict(m);
-    if (VillaError == NULL){
+    if (VillaError == NULL) {
         VillaError = PyErr_NewException("villa.error", NULL, NULL);
     }
 
@@ -757,7 +854,7 @@ initvilla(void)
         Py_DECREF(s);
     }
 
-    if (VillaError != NULL){
+    if (VillaError != NULL) {
         PyDict_SetItemString(d, "error", VillaError);
     }
 }
