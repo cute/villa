@@ -18,9 +18,12 @@ print '*' * 100
 for k, v in db.iteritems():
     print k, v
 
-
 print '*' * 100
 for k, v in db.iterprefix('app', villa.VL_JFORWARD):
     print k, v
+
+print db.sync()
+print db.rnum()
+print db.info()
 
 db.close()

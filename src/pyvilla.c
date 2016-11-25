@@ -180,6 +180,90 @@ villa__close(register villaobject *dp, PyObject *args)
 }
 
 static PyObject *
+villa__info(register villaobject *dp, PyObject *args)
+{
+    if (!PyArg_ParseTuple(args, ":info")) {
+        return NULL;
+    }
+
+    PyObject *info = PyDict_New();
+
+    char *name = vlname(dp->villa);
+    PyObject *o = PyString_FromString(name);
+    PyDict_SetItemString(info, "name",  o);
+    free(name);
+
+    o = PyInt_FromLong(vlfsiz(dp->villa));
+    PyDict_SetItemString(info, "file_size", o);
+
+    o = PyInt_FromLong(vllnum(dp->villa));
+    PyDict_SetItemString(info, "leaf_nodes", o);
+
+    o = PyInt_FromLong(vlnnum(dp->villa));
+    PyDict_SetItemString(info, "non_leaf_nodes", o);
+
+    o = PyInt_FromLong(vlrnum(dp->villa));
+    PyDict_SetItemString(info, "records", o);
+
+    o = PyInt_FromLong(vlinode(dp->villa));
+    PyDict_SetItemString(info, "inode_number", o);
+
+    o = PyFloat_FromDouble(vlmtime(dp->villa));
+    PyDict_SetItemString(info, "modified_time", o);
+
+    Py_INCREF(info);
+    return info;
+}
+
+static PyObject *
+villa__sync(register villaobject *dp, PyObject *args)
+{
+    if (!PyArg_ParseTuple(args, ":sync")) {
+        return NULL;
+    }
+    if (vlsync(dp->villa)){
+        Py_RETURN_TRUE;
+    };
+    Py_RETURN_FALSE;
+}
+
+static PyObject *
+villa__optimize(register villaobject *dp, PyObject *args)
+{
+    if (!PyArg_ParseTuple(args, ":optimize")) {
+        return NULL;
+    }
+    if (vloptimize(dp->villa)){
+        Py_RETURN_TRUE;
+    };
+    Py_RETURN_FALSE;
+}
+
+static PyObject *
+villa__writable(register villaobject *dp, PyObject *args)
+{
+    if (!PyArg_ParseTuple(args, ":writable")) {
+        return NULL;
+    }
+    if (vlwritable(dp->villa)){
+        Py_RETURN_TRUE;
+    };
+    Py_RETURN_FALSE;
+}
+
+static PyObject *
+villa__rnum(register villaobject *dp, PyObject *args)
+{
+    if (!PyArg_ParseTuple(args, ":rnum")) {
+        return NULL;
+    }
+    size_t rnum = vlrnum(dp->villa);
+    PyObject *obj = PyInt_FromSize_t(rnum);
+    Py_INCREF(obj);
+    return obj;
+}
+
+static PyObject *
 villa_keys(register villaobject *dp, PyObject *args)
 {
     register PyObject *v, *item;
@@ -440,6 +524,16 @@ villa_itervalues(villaobject *dp)
 static PyMethodDef villa_methods[] = {
     { "close", (PyCFunction)villa__close, METH_VARARGS,
         "close()\nClose the database." },
+    { "info", (PyCFunction)villa__info, METH_VARARGS,
+        "info()\noutput miscellaneous information to the standard output.." },
+    { "optimize", (PyCFunction)villa__optimize, METH_VARARGS,
+        "optimize()\nOptimize the database." },
+    { "sync", (PyCFunction)villa__sync, METH_VARARGS,
+        "optimize()\n If successful, the return value is true, else, it is false. This function is useful when another process uses the connected database file." },
+    { "writable", (PyCFunction)villa__writable, METH_VARARGS,
+        "writable()\nThe return value is true if the handle is a writer, false if not." },
+    { "rnum", (PyCFunction)villa__rnum, METH_VARARGS,
+        "rnum()\n If successful, the return value is the number of the records stored in the database, else, it is -1." },
     { "keys", (PyCFunction)villa_keys, METH_VARARGS,
         "keys() -> list\nReturn a list of all keys in the database." },
     { "has_key", (PyCFunction)villa_has_key, METH_VARARGS,
@@ -803,10 +897,10 @@ villaopen(PyObject *self, PyObject *args)
         iflags = VL_OWRITER;
         break;
     case 'c':
-        iflags = VL_OWRITER | VL_OCREAT;
+        iflags = VL_OWRITER | VL_OCREAT | VL_OYCOMP;
         break;
     case 'n':
-        iflags = VL_OWRITER | VL_OCREAT | VL_OTRUNC;
+        iflags = VL_OWRITER | VL_OCREAT | VL_OTRUNC | VL_OYCOMP;
         break;
     default:
         PyErr_SetString(VillaError,
