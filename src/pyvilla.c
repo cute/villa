@@ -283,6 +283,7 @@ villa_keys(register villaobject *dp, PyObject *args)
     /* Init Iterator */
     if (!vlcurfirst(dp->villa)) {
         PyErr_SetString(VillaError, dperrmsg(dpecode));
+        return NULL;
     }
 
     /* Scan Iterator */
@@ -485,8 +486,8 @@ villa_trunprefix(register villaobject *dp, PyObject *args)
     check_villaobject_open(dp);
 
     if (!vlcurjump(dp->villa, prefix.dptr, prefix.dsize, mode)) {
-        PyErr_SetString(VillaError, dperrmsg(dpecode));
-        Py_RETURN_FALSE;
+        PyErr_SetString(VillaError, "error");
+        return NULL;
     }
 
     while (vlcurout(dp->villa)) {
@@ -653,6 +654,7 @@ static PyObject *villaiter_iternextkey(villaiterobject *di)
     else {
         if (dpecode != DP_ENOITEM) {
             PyErr_SetString(VillaError, dperrmsg(dpecode));
+            return NULL;
         }
         Py_DECREF(d);
         di->villa = NULL;
@@ -932,6 +934,7 @@ initvilla(void)
     d = PyModule_GetDict(m);
     if (VillaError == NULL) {
         VillaError = PyErr_NewException("villa.error", NULL, NULL);
+        PyModule_AddObject(m, "error", VillaError);
     }
 
     PyModule_AddIntMacro(m, VL_DOVER);
@@ -946,9 +949,5 @@ initvilla(void)
     if (s != NULL) {
         PyDict_SetItemString(d, "library", s);
         Py_DECREF(s);
-    }
-
-    if (VillaError != NULL) {
-        PyDict_SetItemString(d, "error", VillaError);
     }
 }
