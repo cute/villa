@@ -1,29 +1,35 @@
-#-*- encoding:utf-8 -*-
+# -*- encoding:utf-8 -*-
 
-from villa import villa
+from villa import Villa
 
-db = villa.open('test.db', 'n')
+def main():
+    db = Villa('test.db', 'n')
 
-db.put('a', '1', villa.VL_DDUP)
-db.put('a', '2', villa.VL_DDUP)
+    db.push('a', '1')
+    db.push('a', '2')
+    del db['a']
+    print db.getlist('a')
 
-print db.getlist('a')
+    db['apple'] = 'red'
+    db['apple2'] = 'red'
+    db['lemon'] = 'yellow'
+    db['orange'] = 'orange'
 
-db['apple'] = 'red'
-db['apple2'] = 'red'
-db['lemon'] = 'yellow'
-db['orange'] = 'orange'
+    print '*' * 100
+    for k, v in db.iteritems():
+        print k, v
 
-print '*' * 100
-for k, v in db.iteritems():
-    print k, v
+    print '*' * 100
+    # db.truncate('app')
+    for k, v in db.iter('app'):
+        print db.getlist('a')
+        print k, v
+    print '*' * 100
+    print db.sync()
+    print db.rnum()
+    print db.info()
 
-print '*' * 100
-for k, v in db.iterprefix('app', villa.VL_JFORWARD):
-    print k, v
+    db.close()
 
-print db.sync()
-print db.rnum()
-print db.info()
-
-db.close()
+if __name__ == '__main__':
+    main()

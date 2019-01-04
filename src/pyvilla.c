@@ -486,7 +486,7 @@ villa_trunprefix(register villaobject *dp, PyObject *args)
     check_villaobject_open(dp);
 
     if (!vlcurjump(dp->villa, prefix.dptr, prefix.dsize, mode)) {
-        PyErr_SetString(VillaError, "error");
+        PyErr_SetString(VillaError, dperrmsg(dpecode));
         return NULL;
     }
 
@@ -545,7 +545,7 @@ static PyMethodDef villa_methods[] = {
     { "iterprefix", (PyCFunction)villa_iterprefix, METH_VARARGS,
         "D.iterprefix(prefix, mode) -> an iterator over the (key, value) items of D" },
     { "trunprefix", (PyCFunction)villa_trunprefix, METH_VARARGS,
-        "trunprefix(prefix) -> remove all values key has prefix" },
+        "trunprefix(prefix, mode) -> remove all values key has prefix" },
     { "getlist", (PyCFunction)villa_getlist, METH_VARARGS,
         "getlist(key) -> list\n"
         "Return the list for key" },
