@@ -4,6 +4,7 @@ from villa import Villa
 
 def main():
     db = Villa('test.db', 'n')
+    print db['abc']
 
     db.push('a', '1')
     db.push('a', '2')

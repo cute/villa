@@ -37,7 +37,7 @@ class Villa(object):
         self.db.put(key, value, villa.VL_DOVER)
 
     def __getitem__(self, key):
-        return self.db.get(key)
+        return self.db[key]
 
     def __delitem__(self, key):
         del self.db[key]
