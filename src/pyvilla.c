@@ -486,18 +486,20 @@ villa_trunprefix(register villaobject *dp, PyObject *args)
     check_villaobject_open(dp);
 
     if (!vlcurjump(dp->villa, prefix.dptr, prefix.dsize, mode)) {
-        PyErr_SetString(VillaError, dperrmsg(dpecode));
-        return NULL;
+        Py_RETURN_FALSE;
     }
 
-    while (vlcurout(dp->villa)) {
+    for(;;){
         key = vlcurkey(dp->villa, NULL);
         if (key){
             if (strncmp(prefix.dptr, key, prefix.dsize)) {
                 free(key);
                 break;
             }
+            vlcurout(dp->villa);
             free(key);
+        } else {
+            break;
         }
     }
 
@@ -507,18 +509,21 @@ villa_trunprefix(register villaobject *dp, PyObject *args)
 static PyObject *
 villa_iterkeys(villaobject *dp)
 {
+    dp->jmode = -1;
     return villaiter_new(dp, &PyVillaIterKey_Type);
 }
 
 static PyObject *
 villa_iteritems(villaobject *dp)
 {
+    dp->jmode = -1;
     return villaiter_new(dp, &PyVillaIterItem_Type);
 }
 
 static PyObject *
 villa_itervalues(villaobject *dp)
 {
+    dp->jmode = -1;
     return villaiter_new(dp, &PyVillaIterValue_Type);
 }
 

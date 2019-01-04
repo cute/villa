@@ -16,7 +16,7 @@ class Villa(object):
             yield key, value
 
     def truncate(self, prefix):
-        self.db.trunprefix(prefix, villa.VL_JFORWARD)
+        return self.db.trunprefix(prefix, villa.VL_JFORWARD)
 
     def push(self, key, value):
         self.db.put(key, value, villa.VL_DDUP)
