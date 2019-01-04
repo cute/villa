@@ -463,7 +463,7 @@ villa_iterprefix(register villaobject *dp, PyObject *args)
     dp->jmode = mode;
 
     if (!vlcurjump(dp->villa, prefix.dptr, prefix.dsize, mode)) {
-        PyErr_SetString(VillaError, dperrmsg(dpecode));
+        PyErr_SetString(PyExc_StopIteration, dperrmsg(dpecode));
         return NULL;
     }
 
